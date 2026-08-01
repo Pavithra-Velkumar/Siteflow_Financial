@@ -1,0 +1,80 @@
+{
+  "theme": "hybrid_high_contrast",
+  "typography": {
+    "headings": {
+      "fontFamily": "Cabinet Grotesk, sans-serif",
+      "weights": ["600", "800"],
+      "usage": "Use for stat numbers and main headers. Apply tracking-tight. NEVER use Inter for headings."
+    },
+    "body": {
+      "fontFamily": "IBM Plex Sans, sans-serif",
+      "weights": ["400", "500", "600"],
+      "usage": "Highly legible for tables, inputs, and dense data views."
+    }
+  },
+  "colors": {
+    "background": "#1e293b",
+    "surface": "#ffffff",
+    "primary": "#ea580c",
+    "secondary": "#f59e0b",
+    "text_on_bg": "#f8fafc",
+    "text_on_surface": "#0f172a",
+    "muted_on_surface": "#64748b",
+    "status": {
+      "success": "#10b981",
+      "danger": "#ef4444",
+      "warning": "#f59e0b"
+    }
+  },
+  "visual_enhancers": {
+    "borders": "1px solid #e2e8f0 on white cards. No borders on the dark background.",
+    "shadows": "Use shadow-lg on white cards to make them pop against the slate background.",
+    "radii": "rounded-xl for main cards, rounded-md for buttons, badges, and inputs."
+  },
+  "grids_and_layouts": {
+    "dashboard_grid": "grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6. KPI cards take 1 column, charts take 2 columns.",
+    "spacing": "Use p-6 or p-8 inside white cards. Maintain gap-6 between cards.",
+    "navigation": "Desktop: Collapsible sidebar with #1e293b background. Mobile: Fixed bottom nav with #ffffff background and slate icons."
+  },
+  "components": {
+    "stat_cards": "White background, big slate numbers, safety orange Lucide icons.",
+    "tables": "Shadcn JS table. White background, simple borders, striped rows in #f8fafc for readability.",
+    "buttons": "Rounded-md. Primary: bg-[#ea580c] text-white hover:bg-[#c2410c]. Secondary: outline or ghost.",
+    "badges": "Pill-shaped. Use for status (Paid/Pending/Overdue) and Roles. bg-opacity-20 with bold text."
+  },
+  "motion": {
+    "interactive": "hover:-translate-y-1 transition-transform duration-200 for cards.",
+    "buttons": "active:scale-95 transition-transform duration-150."
+  },
+  "accessibility": {
+    "contrast": "Ensure text has sufficient contrast. Use #0f172a for text on white cards.",
+    "focus": "Focus rings on inputs and buttons using focus:ring-2 focus:ring-[#ea580c] focus:outline-none.",
+    "data_testid": "Add data-testid attributes to all interactive elements."
+  },
+  "media": {
+    "image_urls": {
+      "login_banner": "https://images.unsplash.com/photo-1488972685288-c3fd157d7c7a?crop=entropy&cs=srgb&fm=jpg&ixid=M3w3NTY2NzV8MHwxfHNlYXJjaHwyfHxtb2Rlcm4lMjBhcmNoaXRlY3R1cmUlMjBidWlsZGluZyUyMGZhY2FkZSUyMGRhcmt8ZW58MHx8fHwxNzg1NTk2ODE1fDA&ixlib=rb-4.1.0&q=85",
+      "empty_state_worker": "https://images.unsplash.com/photo-1625722776951-39123efa4dc3?crop=entropy&cs=srgb&fm=jpg&ixid=M3w4NjA1ODR8MHwxfHNlYXJjaHw0fHxjb25zdHJ1Y3Rpb24lMjBzaXRlJTIwd29ya2VyJTIwaGVsbWV0JTIwYnVpbGRlcnxlbnwwfHx8fDE3ODU1OTY4MDl8MA&ixlib=rb-4.1.0&q=85"
+    }
+  },
+  "instructions_to_main_agent": [
+    "Build the dashboard exactly as a high-contrast layout: overall page body has background #1e293b, but main content containers/cards are crisp white (#ffffff).",
+    "Implement 5 core modules: Main Dashboard, Cash Flow Tracker, Employee Management & Payroll, Construction Planner, Document Storage.",
+    "Use standard JS files for React components, no TypeScript (.tsx). Generate guidelines for .js.",
+    "Use Recharts for charts: Revenue vs Expenses (Bar/Line), Expense Breakdown (Donut).",
+    "Use Lucide-React for icons: HardHat, DollarSign, Calendar, TrendingUp, Users, Trash2, Edit3.",
+    "Currency formatting MUST use ₹ (Indian Rupee) instead of $.",
+    "Use data-testid attributes on all interactive elements (buttons, links, form inputs)."
+  ],
+  "UNIVERSAL GUIDELINES FOR MAIN AGENT": [
+    "Do not apply universal transition (`transition: all`).",
+    "Do not center align the app container.",
+    "Every interaction needs micro-animations - hover states, specific transitions.",
+    "Use 2-3x more spacing than feels comfortable.",
+    "NEVER use AI assistant Emoji characters for icons.",
+    "Use sonner for toasts.",
+    "Prioritize Shadcn components in src/components/ui.",
+    "Ensure layout is mobile-responsive with appropriate overflow handling.",
+    "DO NOT use complete `transparent` background in header, overlays, or dropdowns."
+  ]
+}
