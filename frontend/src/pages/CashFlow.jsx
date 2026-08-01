@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import api, { API } from "@/lib/api";
 import { inr, fmtDate } from "@/lib/format";
-import { Plus, Search, Edit3, Trash2, X, Loader2, FileText, Sparkles, FileDown, Send } from "lucide-react";
+import { Plus, Search, Edit3, Trash2, X, Loader2, FileText, Sparkles, FileDown, Send, Camera, Upload } from "lucide-react";
 import StatusBadge from "@/components/StatusBadge";
 import { toast } from "sonner";
 
@@ -26,7 +26,9 @@ export default function CashFlow() {
   const [saving, setSaving] = useState(false);
   const [scanning, setScanning] = useState(false);
   const [sending, setSending] = useState(null); // txn id being reminded
-  const scanRef = useRef();
+  const scanCameraRef = useRef();
+  const scanUploadRef = useRef();
+  const topSnapRef = useRef();
 
   const load = async () => {
     setLoading(true);
@@ -91,7 +93,7 @@ export default function CashFlow() {
     } finally { setSending(null); }
   };
 
-  const onScanFile = async (file) => {
+  const onScanFile = async (file, source) => {
     if (!file) return;
     setScanning(true);
     try {
@@ -113,7 +115,41 @@ export default function CashFlow() {
       toast.success("Bill scanned — fields prefilled");
     } catch (e) {
       toast.error(e.response?.data?.detail || "Scan failed");
-    } finally { setScanning(false); if (scanRef.current) scanRef.current.value = ""; }
+    } finally {
+      setScanning(false);
+      if (source === "camera" && scanCameraRef.current) scanCameraRef.current.value = "";
+      if (source === "upload" && scanUploadRef.current) scanUploadRef.current.value = "";
+    }
+  };
+
+  const onTopSnap = async (file) => {
+    if (!file) return;
+    // Open modal first with defaults for an outgoing expense, then scan
+    setModal({ form: { ...empty, type: "outgoing" } });
+    setScanning(true);
+    try {
+      const fd = new FormData();
+      fd.append("file", file);
+      const r = await api.post("/scan-bill", fd, { headers: { "Content-Type": "multipart/form-data" } });
+      const d = r.data || {};
+      setModal((m) => ({
+        ...m,
+        form: {
+          ...m.form,
+          party_name: d.vendor_name || "",
+          amount: d.total_amount ? String(d.total_amount) : "",
+          date: d.date || m.form.date,
+          category: d.category || m.form.category,
+          notes: d.notes || "",
+        },
+      }));
+      toast.success("Bill scanned — review and save");
+    } catch (e) {
+      toast.error(e.response?.data?.detail || "Scan failed");
+    } finally {
+      setScanning(false);
+      if (topSnapRef.current) topSnapRef.current.value = "";
+    }
   };
 
   return (
@@ -123,10 +159,20 @@ export default function CashFlow() {
           <h1 className="font-display text-3xl sm:text-4xl font-extrabold text-white tracking-tight">Cash Flow</h1>
           <p className="text-slate-400 mt-1 text-sm">Every rupee in and out — with proof.</p>
         </div>
-        <button data-testid="new-txn-btn" onClick={openNew}
-          className="inline-flex items-center gap-2 px-4 py-2.5 rounded-md bg-[#ea580c] hover:bg-[#c2410c] text-white font-semibold text-sm active:scale-95 transition-transform">
-          <Plus className="w-4 h-4" /> Add Transaction
-        </button>
+        <div className="flex flex-wrap items-center gap-2">
+          <input ref={topSnapRef} type="file" hidden accept="image/*" capture="environment"
+            onChange={(e) => onTopSnap(e.target.files?.[0])} data-testid="top-snap-input" />
+          <button data-testid="snap-bill-btn" disabled={scanning}
+            onClick={() => topSnapRef.current?.click()}
+            className="inline-flex items-center gap-2 px-4 py-2.5 rounded-md bg-slate-900 hover:bg-slate-800 text-white font-semibold text-sm active:scale-95 transition-transform disabled:opacity-60">
+            {scanning ? <Loader2 className="w-4 h-4 animate-spin" /> : <Camera className="w-4 h-4" />}
+            {scanning ? "Reading…" : "Snap Bill"}
+          </button>
+          <button data-testid="new-txn-btn" onClick={openNew}
+            className="inline-flex items-center gap-2 px-4 py-2.5 rounded-md bg-[#ea580c] hover:bg-[#c2410c] text-white font-semibold text-sm active:scale-95 transition-transform">
+            <Plus className="w-4 h-4" /> Add Transaction
+          </button>
+        </div>
       </div>
 
       <div className="bg-white rounded-xl p-4 shadow-lg border border-slate-100">
@@ -207,13 +253,20 @@ export default function CashFlow() {
                 {modal.id ? "Edit Transaction" : "New Transaction"}
               </h2>
               <div className="flex items-center gap-2">
-                <input ref={scanRef} type="file" hidden accept="image/*,application/pdf"
-                  onChange={(e) => onScanFile(e.target.files?.[0])} data-testid="scan-input" />
-                <button type="button" disabled={scanning} onClick={() => scanRef.current?.click()}
-                  data-testid="scan-bill-btn"
+                <input ref={scanCameraRef} type="file" hidden accept="image/*" capture="environment"
+                  onChange={(e) => onScanFile(e.target.files?.[0], "camera")} data-testid="scan-camera-input" />
+                <input ref={scanUploadRef} type="file" hidden accept="image/*,application/pdf"
+                  onChange={(e) => onScanFile(e.target.files?.[0], "upload")} data-testid="scan-upload-input" />
+                <button type="button" disabled={scanning} onClick={() => scanCameraRef.current?.click()}
+                  data-testid="modal-camera-btn"
                   className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md bg-slate-900 hover:bg-slate-800 text-white text-xs font-semibold disabled:opacity-60">
-                  {scanning ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Sparkles className="w-3.5 h-3.5" />}
-                  {scanning ? "Reading…" : "AI Scan Bill"}
+                  {scanning ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Camera className="w-3.5 h-3.5" />}
+                  Camera
+                </button>
+                <button type="button" disabled={scanning} onClick={() => scanUploadRef.current?.click()}
+                  data-testid="modal-upload-btn"
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md bg-slate-100 hover:bg-slate-200 text-slate-800 text-xs font-semibold disabled:opacity-60">
+                  <Upload className="w-3.5 h-3.5" /> Upload
                 </button>
                 <button onClick={() => setModal(null)} data-testid="modal-close" className="p-1 hover:bg-slate-100 rounded-md">
                   <X className="w-5 h-5 text-slate-500" />
