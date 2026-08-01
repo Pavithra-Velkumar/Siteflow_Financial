@@ -517,7 +517,20 @@ async def list_projects(user=Depends(get_current_user)):
 async def project_details(name: str, user=Depends(get_current_user)):
     txns = await db.transactions.find({"user_id": user["id"], "project_site": name}, {"_id": 0}).sort("date", -1).to_list(2000)
     tasks = await db.tasks.find({"user_id": user["id"], "project_site": name}, {"_id": 0}).sort("date", 1).to_list(500)
-    return {"transactions": txns, "tasks": tasks}
+    # Gather all doc ids referenced by these transactions so the frontend can render a photo wall
+    doc_ids = set()
+    for t in txns:
+        if t.get("document_id"):
+            doc_ids.add(t["document_id"])
+        for sp in (t.get("site_photos") or []):
+            doc_ids.add(sp)
+    documents = []
+    if doc_ids:
+        documents = await db.documents.find(
+            {"user_id": user["id"], "id": {"$in": list(doc_ids)}, "is_deleted": {"$ne": True}},
+            {"_id": 0}
+        ).to_list(500)
+    return {"transactions": txns, "tasks": tasks, "documents": documents}
 
 
 def _generate_invoice_pdf(txn: dict, owner: dict) -> bytes:

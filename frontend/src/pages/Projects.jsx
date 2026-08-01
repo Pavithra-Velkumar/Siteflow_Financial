@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
-import api from "@/lib/api";
+import api, { API } from "@/lib/api";
 import { inr, inrCompact, fmtDate } from "@/lib/format";
-import { Building2, ChevronRight, ArrowLeft, TrendingUp, TrendingDown, HandCoins, Clock, ListChecks, Loader2 } from "lucide-react";
+import { Building2, ChevronRight, ArrowLeft, TrendingUp, TrendingDown, HandCoins, Clock, ListChecks, Loader2, Image as ImageIcon, X, Camera } from "lucide-react";
 import StatusBadge from "@/components/StatusBadge";
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from "recharts";
 
@@ -18,9 +18,10 @@ const StatMini = ({ label, value, icon: Icon, color }) => (
 export default function Projects() {
   const [projects, setProjects] = useState([]);
   const [active, setActive] = useState(null); // project name currently drilled into
-  const [detail, setDetail] = useState({ transactions: [], tasks: [] });
+  const [detail, setDetail] = useState({ transactions: [], tasks: [], documents: [] });
   const [loading, setLoading] = useState(true);
   const [detailLoading, setDetailLoading] = useState(false);
+  const [lightbox, setLightbox] = useState(null);
 
   const load = async () => {
     setLoading(true);
@@ -47,16 +48,34 @@ export default function Projects() {
 
   if (active) {
     const p = projects.find((x) => x.name === active);
+    const docsById = Object.fromEntries((detail.documents || []).map((d) => [d.id, d]));
+    const docUrl = (id) => `${API}/documents/${id}/download?auth=${encodeURIComponent(localStorage.getItem("sf_token") || "")}`;
+    const photos = [];
+    (detail.transactions || []).forEach((t) => {
+      (t.site_photos || []).forEach((docId) => {
+        const doc = docsById[docId];
+        if (doc && (doc.content_type || "").startsWith("image/")) {
+          photos.push({ docId, kind: "site", txn: t });
+        }
+      });
+      if (t.document_id) {
+        const doc = docsById[t.document_id];
+        if (doc && (doc.content_type || "").startsWith("image/")) {
+          photos.push({ docId: t.document_id, kind: "bill", txn: t });
+        }
+      }
+    });
+
     return (
       <div className="space-y-6">
         <div className="flex items-center gap-3">
-          <button data-testid="back-to-projects" onClick={() => setActive(null)}
+          <button data-testid="back-to-projects" onClick={() => { setActive(null); setLightbox(null); }}
             className="p-2 rounded-md bg-white hover:bg-slate-100 border border-slate-200">
             <ArrowLeft className="w-4 h-4 text-slate-700" />
           </button>
           <div>
             <h1 className="font-display text-3xl sm:text-4xl font-extrabold text-white tracking-tight">{active}</h1>
-            <p className="text-slate-400 mt-1 text-sm">Site-level profit and loss.</p>
+            <p className="text-slate-400 mt-1 text-sm">Site-level profit, tasks and photo wall.</p>
           </div>
         </div>
 
@@ -69,6 +88,46 @@ export default function Projects() {
             <StatMini label="Tasks" value={p.task_count} icon={ListChecks} color="#0ea5e9" />
           </div>
         )}
+
+        {/* Photo Wall */}
+        <div className="bg-white rounded-xl shadow-lg border border-slate-100 overflow-hidden">
+          <div className="px-5 py-3 border-b border-slate-100 flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <ImageIcon className="w-4 h-4 text-[#ea580c]" />
+              <span className="font-display font-bold text-slate-900">Photo Wall</span>
+            </div>
+            <span className="text-xs text-slate-500 font-medium">{photos.length} photo{photos.length === 1 ? "" : "s"}</span>
+          </div>
+          {detailLoading ? (
+            <div className="py-10 text-center text-slate-400"><Loader2 className="w-5 h-5 animate-spin inline" /></div>
+          ) : photos.length === 0 ? (
+            <div className="py-14 text-center text-slate-400">
+              <Camera className="w-10 h-10 inline mb-2 text-slate-300" />
+              <div className="text-sm font-medium">No site photos yet</div>
+              <div className="text-xs mt-1">Head to Cash Flow → <span className="font-semibold text-[#ea580c]">Snap Bill</span> to start the wall.</div>
+            </div>
+          ) : (
+            <div className="max-h-[520px] overflow-y-auto p-4">
+              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-2">
+                {photos.map((ph, i) => (
+                  <button key={`${ph.docId}-${i}`} onClick={() => setLightbox(ph)}
+                    data-testid={`gallery-photo-${ph.docId}`}
+                    className="relative aspect-square group overflow-hidden rounded-md border border-slate-200 bg-slate-100">
+                    <img src={docUrl(ph.docId)} loading="lazy" alt=""
+                      className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300" />
+                    <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity flex flex-col justify-end p-2 text-left">
+                      <div className="text-white text-[10px] font-semibold truncate">{ph.txn.party_name || "—"}</div>
+                      <div className="text-white/80 text-[9px]">{fmtDate(ph.txn.date)}</div>
+                    </div>
+                    <span className={`absolute top-1 right-1 text-[8px] font-bold px-1.5 py-0.5 rounded-full ${ph.kind === "bill" ? "bg-white/95 text-slate-900" : "bg-[#ea580c]/95 text-white"}`}>
+                      {ph.kind === "bill" ? "BILL" : "SITE"}
+                    </span>
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
           <div className="bg-white rounded-xl shadow-lg border border-slate-100 overflow-hidden">
@@ -119,6 +178,27 @@ export default function Projects() {
             )}
           </div>
         </div>
+
+        {lightbox && (
+          <div data-testid="lightbox" className="fixed inset-0 z-[60] bg-black/90 flex items-center justify-center p-4"
+            onClick={() => setLightbox(null)}>
+            <img src={docUrl(lightbox.docId)} alt="" onClick={(e) => e.stopPropagation()}
+              className="max-h-[82vh] max-w-[92vw] rounded-lg shadow-2xl" />
+            <button onClick={() => setLightbox(null)} data-testid="lightbox-close"
+              className="absolute top-4 right-4 w-10 h-10 rounded-full bg-white/15 hover:bg-white/25 text-white flex items-center justify-center backdrop-blur">
+              <X className="w-5 h-5" />
+            </button>
+            <div className="absolute bottom-6 left-1/2 -translate-x-1/2 bg-black/60 backdrop-blur-sm px-5 py-2.5 rounded-full text-white text-sm shadow-lg">
+              <span className="font-semibold">{lightbox.txn.party_name || "—"}</span>
+              <span className="mx-2 text-white/40">·</span>
+              <span>{fmtDate(lightbox.txn.date)}</span>
+              <span className="mx-2 text-white/40">·</span>
+              <span className={lightbox.txn.type === "incoming" ? "text-emerald-300 font-semibold" : "text-orange-300 font-semibold"}>
+                {inr(lightbox.txn.amount)}
+              </span>
+            </div>
+          </div>
+        )}
       </div>
     );
   }
