@@ -139,6 +139,7 @@ class TransactionIn(BaseModel):
     notes: Optional[str] = ""
     document_id: Optional[str] = None
     client_email: Optional[str] = ""
+    site_photos: List[str] = []
 
 class EmployeeIn(BaseModel):
     name: str

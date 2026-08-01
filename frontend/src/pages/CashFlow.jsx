@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import api, { API } from "@/lib/api";
 import { inr, fmtDate } from "@/lib/format";
-import { Plus, Search, Edit3, Trash2, X, Loader2, FileText, Sparkles, FileDown, Send, Camera, Upload } from "lucide-react";
+import { Plus, Search, Edit3, Trash2, X, Loader2, FileText, Sparkles, FileDown, Send, Camera, Upload, Image as ImageIcon } from "lucide-react";
 import StatusBadge from "@/components/StatusBadge";
 import { toast } from "sonner";
 
@@ -29,6 +29,7 @@ export default function CashFlow() {
   const scanCameraRef = useRef();
   const scanUploadRef = useRef();
   const topSnapRef = useRef();
+  const siteSnapRef = useRef();
 
   const load = async () => {
     setLoading(true);
@@ -128,9 +129,15 @@ export default function CashFlow() {
     setModal({ form: { ...empty, type: "outgoing" } });
     setScanning(true);
     try {
-      const fd = new FormData();
-      fd.append("file", file);
-      const r = await api.post("/scan-bill", fd, { headers: { "Content-Type": "multipart/form-data" } });
+      // 1. Upload the receipt as a document so it stays linked to the transaction
+      const billFd = new FormData();
+      billFd.append("file", file);
+      const billResp = await api.post("/documents/upload", billFd, { headers: { "Content-Type": "multipart/form-data" } });
+      const billDoc = billResp.data;
+      // 2. Scan for fields
+      const scanFd = new FormData();
+      scanFd.append("file", file);
+      const r = await api.post("/scan-bill", scanFd, { headers: { "Content-Type": "multipart/form-data" } });
       const d = r.data || {};
       setModal((m) => ({
         ...m,
@@ -141,14 +148,39 @@ export default function CashFlow() {
           date: d.date || m.form.date,
           category: d.category || m.form.category,
           notes: d.notes || "",
+          document_id: billDoc.id,
+          site_photos: [],
         },
       }));
-      toast.success("Bill scanned — review and save");
+      toast.success("Bill saved — now snap the job site");
+      load();
+      // 3. Auto-trigger site photo camera after a short delay so modal is mounted
+      setTimeout(() => { if (siteSnapRef.current) siteSnapRef.current.click(); }, 300);
     } catch (e) {
-      toast.error(e.response?.data?.detail || "Scan failed");
+      toast.error(e.response?.data?.detail || "Snap failed");
     } finally {
       setScanning(false);
       if (topSnapRef.current) topSnapRef.current.value = "";
+    }
+  };
+
+  const onSiteSnap = async (file) => {
+    if (!file) return;
+    try {
+      const fd = new FormData();
+      fd.append("file", file);
+      const r = await api.post("/documents/upload", fd, { headers: { "Content-Type": "multipart/form-data" } });
+      const doc = r.data;
+      setModal((m) => ({
+        ...m,
+        form: { ...m.form, site_photos: [...(m.form.site_photos || []), doc.id] },
+      }));
+      toast.success("Site photo attached");
+      load();
+    } catch (e) {
+      toast.error(e.response?.data?.detail || "Photo upload failed");
+    } finally {
+      if (siteSnapRef.current) siteSnapRef.current.value = "";
     }
   };
 
@@ -222,7 +254,16 @@ export default function CashFlow() {
                 <tr key={t.id} data-testid={`txn-row-${t.id}`} className={`border-t border-slate-100 ${i % 2 ? "bg-slate-50/50" : ""}`}>
                   <td className="py-3 px-4 text-slate-700 whitespace-nowrap">{fmtDate(t.date)}</td>
                   <td><StatusBadge value={t.type} /></td>
-                  <td className="font-medium text-slate-900">{t.party_name || "—"}</td>
+                  <td className="font-medium text-slate-900">
+                    <div className="flex items-center gap-2">
+                      <span>{t.party_name || "—"}</span>
+                      {t.site_photos && t.site_photos.length > 0 && (
+                        <span className="inline-flex items-center gap-0.5 text-[10px] font-semibold text-slate-600 bg-slate-100 px-1.5 py-0.5 rounded-full" title={`${t.site_photos.length} site photo(s)`}>
+                          <ImageIcon className="w-3 h-3" /> {t.site_photos.length}
+                        </span>
+                      )}
+                    </div>
+                  </td>
                   <td className="text-slate-600 max-w-[200px] truncate">{t.project_site || "—"}</td>
                   <td className="text-slate-600">{t.category}</td>
                   <td className="text-slate-600">{t.payment_method}</td>
@@ -339,6 +380,39 @@ export default function CashFlow() {
                   onChange={(e) => setModal((m) => ({ ...m, form: { ...m.form, client_email: e.target.value } }))}
                   placeholder="client@example.com"
                   className="w-full mt-1 px-3 py-2 rounded-md border border-slate-300 text-slate-900" />
+              </div>
+              <div className="col-span-2">
+                <label className="text-xs font-semibold text-slate-600 flex items-center gap-1">
+                  <ImageIcon className="w-3 h-3" /> Site Photos ({(modal.form.site_photos || []).length})
+                </label>
+                <div className="flex flex-wrap gap-2 mt-1.5">
+                  {(modal.form.site_photos || []).map((docId) => {
+                    const url = `${API}/documents/${docId}/download?auth=${encodeURIComponent(localStorage.getItem("sf_token") || "")}`;
+                    return (
+                      <div key={docId} className="relative group" data-testid={`site-photo-${docId}`}>
+                        <a href={url} target="_blank" rel="noreferrer">
+                          <img src={url} className="w-16 h-16 object-cover rounded-md border border-slate-200 bg-slate-100" alt="site" />
+                        </a>
+                        <button type="button" onClick={() => setModal((m) => ({
+                          ...m, form: { ...m.form, site_photos: m.form.site_photos.filter((x) => x !== docId) }
+                        }))}
+                          data-testid={`remove-site-photo-${docId}`}
+                          className="absolute -top-1.5 -right-1.5 w-5 h-5 bg-red-500 hover:bg-red-600 text-white rounded-full flex items-center justify-center shadow">
+                          <X className="w-3 h-3" />
+                        </button>
+                      </div>
+                    );
+                  })}
+                  <input ref={siteSnapRef} type="file" hidden accept="image/*" capture="environment"
+                    onChange={(e) => onSiteSnap(e.target.files?.[0])} data-testid="site-photo-input" />
+                  <button type="button" onClick={() => siteSnapRef.current?.click()}
+                    data-testid="add-site-photo-btn"
+                    className="w-16 h-16 rounded-md border-2 border-dashed border-slate-300 hover:border-[#ea580c] hover:bg-orange-50 flex flex-col items-center justify-center text-slate-500 hover:text-[#ea580c] text-[10px] font-semibold transition-colors">
+                    <Camera className="w-4 h-4 mb-0.5" />
+                    Add
+                  </button>
+                </div>
+                <p className="text-[11px] text-slate-500 mt-1.5">Snap the job site so this bill stays linked to real work.</p>
               </div>
               <div className="col-span-2">
                 <label className="text-xs font-semibold text-slate-600 flex items-center gap-1"><FileText className="w-3 h-3" /> Attach Bill/Doc (optional)</label>
